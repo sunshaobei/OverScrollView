@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".SwipeMenuRecyclerActivity">
+
+    <android.support.design.widget.CoordinatorLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:addStatesFromChildren="true">
+
+        <include layout="@layout/layout_appbar" />
+
+        <com.liuzhenlin.overscroll.SwipeMenuRecyclerView
+            android:id="@+id/swipe_menu_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="vertical"
+            app:itemScrollingEnabled="true"
+            app:itemSpringBackEnabled="true"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior"
+            app:overscrollEnabled="true"
+            app:useHeaderAndFooterWrapper="false" />
+
+    </android.support.design.widget.CoordinatorLayout>
+</android.support.constraint.ConstraintLayout>
