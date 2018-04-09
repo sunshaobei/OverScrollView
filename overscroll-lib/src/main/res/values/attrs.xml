@@ -4,7 +4,6 @@
         <attr name="overscrollEnabled" />
         <attr name="itemScrollingEnabled" format="boolean" />
         <attr name="itemSpringBackEnabled" format="boolean" />
-        <attr name="useHeaderAndFooterWrapper" format="boolean" />
     </declare-styleable>
 
     <declare-styleable name="OverScrollView">

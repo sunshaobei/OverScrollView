@@ -1,7 +1,5 @@
 package com.liuzhenlin.overscroll;
 
-import android.animation.Animator;
-import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.support.v4.widget.NestedScrollView;
@@ -27,19 +25,38 @@ import static android.support.v4.widget.ViewDragHelper.INVALID_POINTER;
  *
  * @author 刘振林
  */
-public class OverScrollView extends NestedScrollView implements OverScrollBase {
+public class OverScrollView extends NestedScrollView
+        implements OverScrollBase, Animation.AnimationListener {
     // @formatter:off
     private static final String TAG = "OverScrollView";
 
-    protected View mInnerView;
+    private View mInnerView;
 
-    // 子View相对于当前view的位置偏移量
-    protected int mChildLeft;
-    protected int mChildTop;
-    protected int mChildRight;
-    protected int mChildBottom;
+    // 子View相对于当前view的位置
+    private int mChildTop;
+    private int mChildBottom;
+
+    private int mChildTopMargins;
+    private int mChildBottomMargins;
 
     protected final int mTouchSlop;
+
+    private int mViewFlags;
+
+    /** 标志当前View正在滚动 */
+    private static final int FLAG_SCROLLING = 1;
+
+    /** 标志当前View正在过度滚动 */
+    private static final int FLAG_OVERSCROLLING = 1 << 1;
+
+    /** 标志手指正在拖拽着当前view，使其发生滚动 */
+    private static final  int FLAG_DRAGGED_OVERSCROLLING = 1 << 2;
+
+    /**
+     * 标志用户设置了当前View可以过度滚动
+     * @see #setOverscrollEnabled(boolean)
+     */
+    private static final int FLAG_OVERSCROLL_ENABLED_BY_USER = 1 << 3;
 
     private int mActivePointerId = INVALID_POINTER;
 
@@ -66,48 +83,43 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
     /** 是否消费了当前的touch事件 */
     private boolean mIsConsumed;
 
-    /** 当前view是否正在滚动 */
-    private boolean mIsScrolling;
-
     private final OverFlyingDetector mOverflyingDetector;
 
     @OverscrollEdge
-    protected int mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
+    private int mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
 
-    /**
-     * 是否可以过度滚动
-     * @see #setOverscrollEnabled(boolean)
-     */
-    private boolean mOverscrollEnabled;// default true
-
-    /** 手指是否正在拖拽着当前view，使其发生过度滚动 */
-    private boolean mIsDraggedOverscrolling;
+    private TranslateAnimation mOverscrollAnim;
+    private final Interpolator mInterpolator = new DecelerateInterpolator();
     // @formatter:on
 
     public boolean isScrolling() {
-        return mIsScrolling;
-    }
-
-    public boolean isOverscrollEnabled() {
-        return mOverscrollEnabled && mInnerView != null;
-    }
-
-    public void setOverscrollEnabled(boolean overscrollEnabled) {
-        mOverscrollEnabled = overscrollEnabled;
-        if (mOverscrollEnabled) {
-            // 禁用拉到两端时发荧光的效果
-            setOverScrollMode(OVER_SCROLL_NEVER);
-        }
+        return (mViewFlags & FLAG_SCROLLING) != 0;
     }
 
     public boolean isOverscrolling() {
-        switch (mOverscrollEdge) {
-            case OVERSCROLL_EDGE_TOP:
-            case OVERSCROLL_EDGE_BOTTOM:
-            case OVERSCROLL_EDGE_TOP | OVERSCROLL_EDGE_BOTTOM:
-                return mOverscrollEnabled;
-        }
-        return false;
+        return (mViewFlags & FLAG_OVERSCROLLING) != 0;
+    }
+
+    public boolean isDraggedOverscrolling() {
+        return (mViewFlags & FLAG_DRAGGED_OVERSCROLLING) != 0;
+    }
+
+    public boolean isOverscrollEnabled() {
+        return getChildCount() > 0 && (mViewFlags & FLAG_OVERSCROLL_ENABLED_BY_USER) != 0;
+    }
+
+    public void setOverscrollEnabled(boolean enabled) {
+        if (enabled) {
+            mViewFlags |= FLAG_OVERSCROLL_ENABLED_BY_USER;
+            // 禁用拉到两端时发荧光的效果
+            setOverScrollMode(OVER_SCROLL_NEVER);
+        } else
+            mViewFlags &= ~FLAG_OVERSCROLL_ENABLED_BY_USER;
+    }
+
+    @OverscrollEdge
+    public int getOverscrollEdge() {
+        return mOverscrollEdge;
     }
 
     public OverScrollView(Context context) {
@@ -131,7 +143,7 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
 
     @Override
     public void setOverScrollMode(int overScrollMode) {
-        if (mOverscrollEnabled && getOverScrollMode() == View.OVER_SCROLL_NEVER) {
+        if (isOverscrollEnabled() && getOverScrollMode() == View.OVER_SCROLL_NEVER) {
             return;
         }
         super.setOverScrollMode(overScrollMode);
@@ -203,23 +215,6 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
         }
     }
 
-    @Override
-    public boolean onTouchEvent(MotionEvent ev) {
-        switch (ev.getAction()) {
-            case MotionEvent.ACTION_MOVE:
-                if (!mIsScrolling) {
-                    mIsScrolling = isTendToScrollCurrView();
-                }
-                break;
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_CANCEL:
-                mIsScrolling = false;
-                break;
-        }
-        markCurrXY(ev);
-        return mIsConsumed || super.onTouchEvent(ev);
-    }
-
     private void markCurrXY(MotionEvent ev) {
         switch (ev.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
@@ -238,6 +233,23 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
     }
 
     @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        switch (ev.getAction()) {
+            case MotionEvent.ACTION_MOVE:
+                if (!isScrolling() && isTendToScrollCurrView()) {
+                    mViewFlags |= FLAG_SCROLLING;
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                mViewFlags &= ~FLAG_SCROLLING;
+                break;
+        }
+        markCurrXY(ev);
+        return mIsConsumed || super.onTouchEvent(ev);
+    }
+
+    @Override
     public boolean handleOverscroll(MotionEvent e) {
         if (!isOverscrollEnabled()) {
             return false;
@@ -246,16 +258,16 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
 
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                resolveInnerViewOffsets();
+                resolveInnerViewBounds();
                 break;
             case MotionEvent.ACTION_MOVE:
                 final int deltaY = computeOverscrollDeltaY();
-                if (deltaY == 0 && mIsDraggedOverscrolling) {
+                if (deltaY == 0 && isDraggedOverscrolling()) {
                     return true;
                 }
                 switch (mOverscrollEdge) {
-                    case OVERSCROLL_EDGE_UNSPECIFIED:
-                        if (!mIsScrolling) {
+                    case OVERSCROLL_EDGE_UNSPECIFIED: {
+                        if (!isScrolling()) {
                             return false;
                         }
                         final int dy = mCurrY - mDownY;
@@ -271,28 +283,23 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
                         } else if (atBottom && dy < 0) {
                             mOverscrollEdge = OVERSCROLL_EDGE_BOTTOM;
                         } else break;
-                        mIsDraggedOverscrolling = true;
-                        break;
+                        mViewFlags |= FLAG_OVERSCROLLING | FLAG_DRAGGED_OVERSCROLLING;
+                    }
+                    break;
 
                     case OVERSCROLL_EDGE_TOP: {
                         if (!isAtTop()) {
-                            if (isAtBottom()) {
-                                mOverscrollEdge = OVERSCROLL_EDGE_BOTTOM;
-                            }
+                            cancelDraggedOverscrolling();
                             break;
                         }
 
-                        final int old = mInnerView.getTop();
-                        final int childTop = old + deltaY < mChildTop ? mChildTop : old + deltaY;
+                        final int oldTop = mInnerView.getTop();
+                        final int dy = oldTop + deltaY < mChildTop ? 0 : deltaY;
                         // 移动布局
-                        mInnerView.layout(mChildLeft, childTop, mChildRight,
-                                childTop + mInnerView.getMeasuredHeight());
+                        mInnerView.offsetTopAndBottom(dy);
 
-                        if (childTop < old) {
+                        if (mInnerView.getTop() < oldTop) {
                             invalidateParentCachedTouchY();
-                            if (childTop == mChildTop) {
-                                break;
-                            }
                             return true;
                         }
                     }
@@ -302,36 +309,28 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
 
                     case OVERSCROLL_EDGE_BOTTOM: {
                         if (!isAtBottom()) {
-                            if (isAtTop()) {
-                                mOverscrollEdge = OVERSCROLL_EDGE_TOP;
-                            }
+                            cancelDraggedOverscrolling();
                             break;
                         }
 
-                        final int old = mInnerView.getBottom();
-                        final int childBottom = old + deltaY > mChildBottom ?
-                                mChildBottom : old + deltaY;
-                        mInnerView.layout(mChildLeft, childBottom - mInnerView.getMeasuredHeight(),
-                                mChildRight, childBottom);
+                        final int oldBottom = mInnerView.getBottom();
+                        final int dy = oldBottom + deltaY > mChildBottom ? 0 : deltaY;
+                        mInnerView.offsetTopAndBottom(dy);
 
-                        if (childBottom > old) {
+                        if (mInnerView.getBottom() > oldBottom) {
                             invalidateParentCachedTouchY();
-                            if (childBottom == mChildBottom) {
-                                break;
-                            }
                             return true;
                         }
                     }
                     break;
 
                     case OVERSCROLL_EDGE_TOP | OVERSCROLL_EDGE_BOTTOM: {
-                        final int old = mInnerView.getTop();
-                        final int childTop = old + deltaY;
-                        mInnerView.layout(mChildLeft, childTop,
-                                mChildRight, mInnerView.getBottom() + deltaY);
+                        final int oldTop = mInnerView.getTop();
+                        final int childTop = oldTop + deltaY;
+                        mInnerView.offsetTopAndBottom(deltaY);
 
-                        if (childTop > mChildTop && childTop < old
-                                || childTop < mChildTop && childTop > old) {
+                        if (childTop > mChildTop && childTop < oldTop
+                                || childTop < mChildTop && childTop > oldTop) {
                             invalidateParentCachedTouchY();
                             return true;
                         }
@@ -341,10 +340,10 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                if (mIsDraggedOverscrolling) {
+                if (isDraggedOverscrolling()) {
                     smoothSpringBack();
                     endDrag();// clear scroll state
-                    mIsDraggedOverscrolling = false;
+                    mViewFlags &= ~FLAG_DRAGGED_OVERSCROLLING;
                     return true;
                 }
                 break;
@@ -352,24 +351,27 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
         return false;
     }
 
-    protected void resolveInnerViewOffsets() {
+    private void resolveInnerViewBounds() {
         if (mInnerView != null) {
+            mChildTopMargins = getPaddingTop();
+            mChildBottomMargins = getPaddingBottom();
             if (mInnerView.getLayoutParams() instanceof MarginLayoutParams) {
                 MarginLayoutParams mlp = (MarginLayoutParams) mInnerView.getLayoutParams();
-                mChildLeft = mlp.leftMargin;
-                mChildTop = mlp.topMargin;
+                mChildTopMargins += mlp.topMargin;
+                mChildBottomMargins += mlp.bottomMargin;
             }
-            mChildRight = mChildLeft + mInnerView.getMeasuredWidth();
+            mChildTop = mChildTopMargins;
             mChildBottom = mChildTop + mInnerView.getMeasuredHeight();
         }
     }
 
+    private void cancelDraggedOverscrolling() {
+        mViewFlags &= ~(FLAG_DRAGGED_OVERSCROLLING | FLAG_OVERSCROLLING);
+        mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
+    }
+
     @Override
     public boolean isTendToScrollCurrView() {
-        // 不在触摸移动
-        if (mLastY == mDownY || mLastY == mCurrY) {
-            return false;
-        }
         final int absDX = Math.abs(mCurrX - mDownX);
         final int absDY = Math.abs(mCurrY - mDownY);
         return absDY > absDX && absDY >= mTouchSlop
@@ -386,8 +388,8 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
                 if (isPushingBack()) {
                     return deltaY;
                 } else {
-                    final double ratio = (double) (Math.abs(mInnerView.getMeasuredHeight()
-                            - mInnerView.getBottom())) / (double) getHeight();
+                    final double ratio = (double) Math.abs(mInnerView.getTop() - mChildTop)
+                            / (double) (getHeight() - mChildTopMargins - mChildBottomMargins);
                     return (int) (1d / (2d + Math.tan(Math.PI / 2d * ratio)) * (double) deltaY);
                 }
         }
@@ -432,9 +434,10 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
     }
 
     public boolean isAtBottom() {
-        final int offset = mInnerView.getMeasuredHeight() - getHeight();
+        final int scrollRange = mInnerView.getMeasuredHeight()
+                - (getHeight() - mChildTopMargins - mChildBottomMargins);
         final int scrollY = getScrollY();
-        return offset == scrollY || !canScrollVertically(1);
+        return scrollY == scrollRange || !canScrollVertically(1);
     }
 
     /**
@@ -444,7 +447,7 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
      */
     @Override
     public void startHeaderOverscrollAnim(int from, int to, int duration) {
-        startSmoothOverscrollAnim(from, to, duration);
+        startOverscrollAnim(from, to, duration);
     }
 
     /**
@@ -454,91 +457,45 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
      */
     @Override
     public void startFooterOverscrollAnim(int from, int to, int duration) {
-        startSmoothOverscrollAnim(from - mInnerView.getMeasuredHeight(),
+        startOverscrollAnim(from - mInnerView.getMeasuredHeight(),
                 to - mInnerView.getMeasuredHeight(), duration);
     }
 
-    /**
-     * @deprecated use {@link #startSmoothOverscrollAnim(int, int, int)} instead.
-     */
-    @Deprecated
-    protected void startOverscrollAnim(int fromTop, int toTop, int duration) {
-        if (fromTop == toTop || !animNeedStated()) {
-            return;
+    private void startOverscrollAnim(int fromTop, int toTop, int duration) {
+        if (fromTop != toTop && hasAnimationFinished()) {
+            mViewFlags |= FLAG_OVERSCROLLING;
+            mOverscrollAnim = new TranslateAnimation(0, 0,
+                    fromTop - toTop, 0);
+            mOverscrollAnim.setDuration(duration);
+            mOverscrollAnim.setInterpolator(mInterpolator);
+            mOverscrollAnim.setAnimationListener(this);
+            // 开启回弹动画
+            mInnerView.startAnimation(mOverscrollAnim);
+            mInnerView.offsetTopAndBottom(toTop - fromTop);
         }
-        mOverscrollAnim = new TranslateAnimation(0, 0, fromTop, toTop);
-        mOverscrollAnim.setDuration(duration);
-        mOverscrollAnim.setAnimationListener(new Animation.AnimationListener() {
-            @Override
-            public void onAnimationStart(Animation animation) {
-                animation.setInterpolator(mInterpolator);
-            }
-
-            @Override
-            public void onAnimationEnd(Animation animation) {
-                mOverscrollAnim = null;
-                smoothSpringBack();
-            }
-
-            @Override
-            public void onAnimationRepeat(Animation animation) {
-            }
-        });
-        // 开启回弹动画
-        mInnerView.startAnimation(mOverscrollAnim);
-        mInnerView.layout(mChildLeft, toTop, mChildRight, toTop + mInnerView.getMeasuredHeight());
     }
 
-    private TranslateAnimation mOverscrollAnim;
-    private ValueAnimator mSmoothOverscrollAnim;
-    protected final Interpolator mInterpolator = new DecelerateInterpolator();
-
-    protected void startSmoothOverscrollAnim(int fromTop, final int toTop, int duration) {
-        if (fromTop == toTop || !animNeedStated()) {
-            return;
-        }
-        mSmoothOverscrollAnim = ValueAnimator.ofInt(fromTop, toTop);
-        mSmoothOverscrollAnim.setDuration(duration);
-        mSmoothOverscrollAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-            @Override
-            public void onAnimationUpdate(ValueAnimator animation) {
-                final int top = (int) animation.getAnimatedValue();
-                mInnerView.layout(mChildLeft, top, mChildRight,
-                        top + mInnerView.getMeasuredHeight());
-            }
-        });
-        mSmoothOverscrollAnim.addListener(new Animator.AnimatorListener() {
-
-            @Override
-            public void onAnimationStart(Animator animation) {
-                animation.setInterpolator(mInterpolator);
-            }
-
-            @Override
-            public void onAnimationEnd(Animator animation) {
-                mSmoothOverscrollAnim = null;
-                smoothSpringBack();
-            }
-
-            @Override
-            public void onAnimationCancel(Animator animation) {
-            }
-
-            @Override
-            public void onAnimationRepeat(Animator animation) {
-
-            }
-        });
-        mSmoothOverscrollAnim.start();
-    }
-
-    private boolean animNeedStated() {
-        if (mOverscrollAnim != null || mSmoothOverscrollAnim != null) {
+    private boolean hasAnimationFinished() {
+        if (mOverscrollAnim != null) {
             Log.e(TAG, "can not start this over-scroll animation " +
                     "till the last animation has finished");
             return false;
         }
         return true;
+    }
+
+    @Override
+    public void onAnimationStart(Animation animation) {
+    }
+
+    @Override
+    public void onAnimationEnd(Animation animation) {
+        mOverscrollAnim = null;
+        smoothSpringBack();
+    }
+
+    @Override
+    public void onAnimationRepeat(Animation animation) {
     }
 
     @Override
@@ -549,6 +506,7 @@ public class OverScrollView extends NestedScrollView implements OverScrollBase {
             startFooterOverscrollAnim(mInnerView.getBottom(), mChildBottom, DURATION_SPRING_BACK);
         } else {
             mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
+            mViewFlags &= ~(FLAG_DRAGGED_OVERSCROLLING | FLAG_OVERSCROLLING);
         }
     }
 

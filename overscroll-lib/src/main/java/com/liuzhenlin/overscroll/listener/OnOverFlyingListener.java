@@ -3,7 +3,6 @@ package com.liuzhenlin.overscroll.listener;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Message;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
@@ -57,8 +56,10 @@ public abstract class OnOverFlyingListener implements GestureDetector.OnGestureL
     /** 当前计算次数 */
     private int mCurrComputeTimes = 0;
 
+    private static final float RATIO_OVER_DIST_TO_VELOCITY = 1f / 75f;
+
     /** 过度滚动到最大距离所花的时间 ms */
-    private static final int DURATION_OVERFLYING = 120;
+    private static final int DURATION_OVERFLYING = 150;
     // @formatter:on
 
     public OnOverFlyingListener(Context context) {
@@ -109,7 +110,6 @@ public abstract class OnOverFlyingListener implements GestureDetector.OnGestureL
         mDeltaY = (int) (upEvent.getY() - downEvent.getY());
         final int absDX = Math.abs(mDeltaX);
         final int absDY = Math.abs(mDeltaY);
-        Log.d("OnOverFlyingListener", velocityX + "   " + velocityY);
 
         // 上下flying
         if (absDY > absDX && absDY >= mTouchSlop && Math.abs(velocityY) >= OVER_FLYING_MIN_V) {
@@ -158,22 +158,22 @@ public abstract class OnOverFlyingListener implements GestureDetector.OnGestureL
 
                     // 顶部发生过度滚动
                     if (mDeltaY > 0 && isAtTop()) {
-                        onTopOverFling((int) Math.abs(mVelocityY / 100f), DURATION_OVERFLYING);
+                        onTopOverFling((int) Math.abs(mVelocityY * RATIO_OVER_DIST_TO_VELOCITY), DURATION_OVERFLYING);
                         mCurrComputeTimes = MAX_COMPUTE_TIMES;
 
                         // 底部发生过度滚动
                     } else if (mDeltaY < 0 && isAtBottom()) {
-                        onBottomOverFling((int) Math.abs(mVelocityY / 100f), DURATION_OVERFLYING);
+                        onBottomOverFling((int) Math.abs(mVelocityY * RATIO_OVER_DIST_TO_VELOCITY), DURATION_OVERFLYING);
                         mCurrComputeTimes = MAX_COMPUTE_TIMES;
 
                         // 左部发生过度滚动
                     } else if (mDeltaX > 0 && isAtFarLeft()) {
-                        onLeftOverFling((int) Math.abs(mVelocityX / 100f), DURATION_OVERFLYING);
+                        onLeftOverFling((int) Math.abs(mVelocityX * RATIO_OVER_DIST_TO_VELOCITY), DURATION_OVERFLYING);
                         mCurrComputeTimes = MAX_COMPUTE_TIMES;
 
                         // 右部发生过度滚动
                     } else if (mDeltaX <= 0 && isAtFarRight()) {
-                        onRightOverFling((int) Math.abs(mVelocityX / 100f), DURATION_OVERFLYING);
+                        onRightOverFling((int) Math.abs(mVelocityX * RATIO_OVER_DIST_TO_VELOCITY), DURATION_OVERFLYING);
                         mCurrComputeTimes = MAX_COMPUTE_TIMES;
                     }
 

@@ -16,15 +16,9 @@ import com.liuzhenlin.overscroll.SwipeMenuRecyclerView;
 
 import me.slideback.activity.SlideBackActivity;
 
-import static android.os.Build.VERSION.SDK_INT;
-import static android.os.Build.VERSION_CODES.KITKAT;
-import static android.os.Build.VERSION_CODES.LOLLIPOP;
 import static android.support.v7.widget.LinearLayoutManager.VERTICAL;
 import static android.widget.Toast.LENGTH_SHORT;
 import static com.liuzhenlin.overscrollview.util.ToastUtil.showToast;
-import static me.slideback.utils.SystemBarUtil.setTranslucentNavigation;
-import static me.slideback.utils.SystemBarUtil.setTranslucentStatus;
-import static me.slideback.utils.SystemBarUtil.setTransparentStatus;
 
 public class SwipeMenuRecyclerActivity extends SlideBackActivity {
     private SwipeMenuRecyclerView mSwipeMenuRecyclerView;
@@ -39,15 +33,6 @@ public class SwipeMenuRecyclerActivity extends SlideBackActivity {
         mSwipeMenuRecyclerView.setLayoutManager(new LinearLayoutManager(this, VERTICAL, false));
         mSwipeMenuRecyclerView.setItemAnimator(new DefaultItemAnimator());
         mSwipeMenuRecyclerView.addItemDecoration(new DividerItemDecoration(this, VERTICAL));
-
-        if (SDK_INT >= KITKAT) {
-            if (SDK_INT >= LOLLIPOP) {
-                setTransparentStatus(this, true);
-            } else {
-                setTranslucentStatus(this, true);
-            }
-            setTranslucentNavigation(this, true);
-        }
     }
 
     public static class SwipeMenuRecyclerAdapter extends SwipeMenuRecyclerView

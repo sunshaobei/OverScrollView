@@ -14,7 +14,7 @@ import android.widget.OverScroller;
  */
 
 public class SmoothScrollableLinearLayout extends LinearLayoutCompat {
-    public final OverScroller mOverScroller;
+    private final OverScroller mOverScroller;
 
     public SmoothScrollableLinearLayout(Context context) {
         this(context, null);
@@ -53,10 +53,15 @@ public class SmoothScrollableLinearLayout extends LinearLayoutCompat {
      * @param duration duration of the scroll in milliseconds.
      */
     public void smoothScrollTo(int desX, int desY, int duration) {
-        if ((-getScrollX() != desX || getScrollY() != desY) && mOverScroller.isFinished()
-                || (mOverScroller.getFinalX() != desX || mOverScroller.getFinalY() != desY)) {
-            final int deltaX = getScrollX() - (desX > 0 ? desX : -desX);
-            final int deltaY = desY - getScrollY();
+        final int scrollX = getScrollX();
+        final int scrollY = getScrollY();
+
+        final boolean finished = mOverScroller.isFinished();
+        if (finished && (-scrollX != desX || scrollY != desY) ||
+                !finished && (mOverScroller.getFinalX() != desX || mOverScroller.getFinalY() != desY)) {
+
+            final int deltaX = scrollX - (desX > 0 ? desX : -desX);
+            final int deltaY = desY - scrollY;
             smoothScrollBy(deltaX, deltaY, duration);
         }
     }
