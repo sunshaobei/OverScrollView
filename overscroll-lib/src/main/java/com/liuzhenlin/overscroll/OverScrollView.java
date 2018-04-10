@@ -2,6 +2,7 @@ package com.liuzhenlin.overscroll;
 
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.support.v4.view.ViewCompat;
 import android.support.v4.widget.NestedScrollView;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -44,19 +45,19 @@ public class OverScrollView extends NestedScrollView
     private int mViewFlags;
 
     /** 标志当前View正在滚动 */
-    private static final int FLAG_SCROLLING = 1;
+    private static final int VIEW_FLAG_SCROLLING = 1;
 
     /** 标志当前View正在过度滚动 */
-    private static final int FLAG_OVERSCROLLING = 1 << 1;
+    private static final int VIEW_FLAG_OVERSCROLLING = 1 << 1;
 
     /** 标志手指正在拖拽着当前view，使其发生滚动 */
-    private static final  int FLAG_DRAGGED_OVERSCROLLING = 1 << 2;
+    private static final  int VIEW_FLAG_DRAGGED_OVERSCROLLING = 1 << 2;
 
     /**
      * 标志用户设置了当前View可以过度滚动
      * @see #setOverscrollEnabled(boolean)
      */
-    private static final int FLAG_OVERSCROLL_ENABLED_BY_USER = 1 << 3;
+    private static final int VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER = 1 << 3;
 
     private int mActivePointerId = INVALID_POINTER;
 
@@ -93,28 +94,28 @@ public class OverScrollView extends NestedScrollView
     // @formatter:on
 
     public boolean isScrolling() {
-        return (mViewFlags & FLAG_SCROLLING) != 0;
+        return (mViewFlags & VIEW_FLAG_SCROLLING) != 0;
     }
 
     public boolean isOverscrolling() {
-        return (mViewFlags & FLAG_OVERSCROLLING) != 0;
+        return (mViewFlags & VIEW_FLAG_OVERSCROLLING) != 0;
     }
 
     public boolean isDraggedOverscrolling() {
-        return (mViewFlags & FLAG_DRAGGED_OVERSCROLLING) != 0;
+        return (mViewFlags & VIEW_FLAG_DRAGGED_OVERSCROLLING) != 0;
     }
 
     public boolean isOverscrollEnabled() {
-        return getChildCount() > 0 && (mViewFlags & FLAG_OVERSCROLL_ENABLED_BY_USER) != 0;
+        return getChildCount() > 0 && (mViewFlags & VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER) != 0;
     }
 
     public void setOverscrollEnabled(boolean enabled) {
         if (enabled) {
-            mViewFlags |= FLAG_OVERSCROLL_ENABLED_BY_USER;
+            mViewFlags |= VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER;
             // 禁用拉到两端时发荧光的效果
             setOverScrollMode(OVER_SCROLL_NEVER);
         } else
-            mViewFlags &= ~FLAG_OVERSCROLL_ENABLED_BY_USER;
+            mViewFlags &= ~VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER;
     }
 
     @OverscrollEdge
@@ -237,12 +238,12 @@ public class OverScrollView extends NestedScrollView
         switch (ev.getAction()) {
             case MotionEvent.ACTION_MOVE:
                 if (!isScrolling() && isTendToScrollCurrView()) {
-                    mViewFlags |= FLAG_SCROLLING;
+                    mViewFlags |= VIEW_FLAG_SCROLLING;
                 }
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                mViewFlags &= ~FLAG_SCROLLING;
+                mViewFlags &= ~VIEW_FLAG_SCROLLING;
                 break;
         }
         markCurrXY(ev);
@@ -283,7 +284,7 @@ public class OverScrollView extends NestedScrollView
                         } else if (atBottom && dy < 0) {
                             mOverscrollEdge = OVERSCROLL_EDGE_BOTTOM;
                         } else break;
-                        mViewFlags |= FLAG_OVERSCROLLING | FLAG_DRAGGED_OVERSCROLLING;
+                        mViewFlags |= VIEW_FLAG_OVERSCROLLING | VIEW_FLAG_DRAGGED_OVERSCROLLING;
                     }
                     break;
 
@@ -343,7 +344,7 @@ public class OverScrollView extends NestedScrollView
                 if (isDraggedOverscrolling()) {
                     smoothSpringBack();
                     endDrag();// clear scroll state
-                    mViewFlags &= ~FLAG_DRAGGED_OVERSCROLLING;
+                    mViewFlags &= ~VIEW_FLAG_DRAGGED_OVERSCROLLING;
                     return true;
                 }
                 break;
@@ -366,7 +367,7 @@ public class OverScrollView extends NestedScrollView
     }
 
     private void cancelDraggedOverscrolling() {
-        mViewFlags &= ~(FLAG_DRAGGED_OVERSCROLLING | FLAG_OVERSCROLLING);
+        mViewFlags &= ~(VIEW_FLAG_DRAGGED_OVERSCROLLING | VIEW_FLAG_OVERSCROLLING);
         mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
     }
 
@@ -430,14 +431,14 @@ public class OverScrollView extends NestedScrollView
     }
 
     public boolean isAtTop() {
-        return getScrollY() == 0 || !canScrollVertically(-1);
+        return getScrollY() == 0 || !ViewCompat.canScrollVertically(this, -1);
     }
 
     public boolean isAtBottom() {
         final int scrollRange = mInnerView.getMeasuredHeight()
                 - (getHeight() - mChildTopMargins - mChildBottomMargins);
         final int scrollY = getScrollY();
-        return scrollY == scrollRange || !canScrollVertically(1);
+        return scrollY == scrollRange || !ViewCompat.canScrollVertically(this, 1);
     }
 
     /**
@@ -463,7 +464,6 @@ public class OverScrollView extends NestedScrollView
 
     private void startOverscrollAnim(int fromTop, int toTop, int duration) {
         if (fromTop != toTop && hasAnimationFinished()) {
-            mViewFlags |= FLAG_OVERSCROLLING;
             mOverscrollAnim = new TranslateAnimation(0, 0,
                     fromTop - toTop, 0);
             mOverscrollAnim.setDuration(duration);
@@ -485,7 +485,15 @@ public class OverScrollView extends NestedScrollView
     }
 
     @Override
+    public void forceEndOverscrollAnim() {
+        if (mOverscrollAnim != null) {
+            mOverscrollAnim.cancel();
+        }
+    }
+
+    @Override
     public void onAnimationStart(Animation animation) {
+        mViewFlags |= VIEW_FLAG_OVERSCROLLING;
     }
 
     @Override
@@ -505,8 +513,9 @@ public class OverScrollView extends NestedScrollView
         } else if (mInnerView.getBottom() != mChildBottom) {
             startFooterOverscrollAnim(mInnerView.getBottom(), mChildBottom, DURATION_SPRING_BACK);
         } else {
+            mInnerView.clearAnimation();
             mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
-            mViewFlags &= ~(FLAG_DRAGGED_OVERSCROLLING | FLAG_OVERSCROLLING);
+            mViewFlags &= ~(VIEW_FLAG_DRAGGED_OVERSCROLLING | VIEW_FLAG_OVERSCROLLING);
         }
     }
 

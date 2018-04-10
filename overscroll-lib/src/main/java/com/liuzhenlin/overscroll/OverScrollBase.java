@@ -53,6 +53,8 @@ public interface OverScrollBase {
 
     void startFooterOverscrollAnim(int from, int to, int duration);
 
+    void forceEndOverscrollAnim();
+
     /**
      * 回弹至初始位置
      */

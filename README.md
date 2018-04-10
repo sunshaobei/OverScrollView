@@ -21,7 +21,8 @@ Right sliding item brings a rebound effect.
         android:layout_width="match_parent"
         android:layout_height="65dp"
         android:background="@drawable/default_selector_recycler_item"
-        android:clickable="true">
+        android:clickable="true"
+        android:focusable="true">
         <!-- child views -->
 
         <ImageView
@@ -126,7 +127,7 @@ Below is its two chief methods.
 ```
 2. You can disable this functionality in your xml layout files or class files (By default, it's enabled in vertical layouts).
 ```xml  
-app:item_scrolling_enabled="false"
+app:itemScrollingEnabled="false"
 ```
 ```Java
 mSwipeMenuRecyclerView.setItemScrollingEnabled(false);
@@ -142,7 +143,7 @@ The over-scroll primely supports the vertical layouts of RecyclerView, but to ho
 mSwipeMenuRecyclerView.setOverscrollEnabled(false);  
 ```
 ```xml
-app:overscroll_enabled="false"
+app:overscrollEnabled="false"
 ```
 
 ## OverScrollView
@@ -223,6 +224,8 @@ public interface OverScrollBase {
 
     void startFooterOverscrollAnim(int from, int to, int duration);
 
+    void forceEndOverscrollAnim();
+
     /**
      * 回弹至初始位置
      */
@@ -247,7 +250,7 @@ Step 1. Add the JitPack repository in your root build.gradle at the end of repos
 Step 2. Add the dependency
 ```gradle
 	dependencies {
-	        compile 'com.github.freeze-frame:OverscrollView:v1.1'
+	        compile 'com.github.freeze-frame:OverscrollView:v1.2'
 	}
 ```
 

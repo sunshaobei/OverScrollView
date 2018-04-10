@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Rect;
 import android.support.annotation.Nullable;
+import android.support.v4.view.ViewCompat;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
@@ -48,37 +49,37 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
     private int mViewFlags;
 
     /** 标志列表正在滚动 */
-    private static final int FLAG_SCROLLING = 1;
+    private static final int VIEW_FLAG_SCROLLING = 1;
 
     /** 标志itemView正在滚动 */
-    private static final int FLAG_ITEM_SCROLLING = 1 << 1;
+    private static final int VIEW_FLAG_ITEM_SCROLLING = 1 << 1;
 
     /** 标志itemView已完全滚开 */
-    private static final int FLAG_ITEM_FULL_SCROLLED = 1 << 2;
+    private static final int VIEW_FLAG_ITEM_FULL_SCROLLED = 1 << 2;
 
     /** 标志列表正在过度滚动 */
-    private static final int FLAG_OVERSCROLLING = 1 << 3;
+    private static final int VIEW_FLAG_OVERSCROLLING = 1 << 3;
 
     /** 标志手指正在拖拽着当前view，使其发生滚动 */
-    private static final  int FLAG_DRAGGED_OVERSCROLLING = 1 << 4;
+    private static final  int VIEW_FLAG_DRAGGED_OVERSCROLLING = 1 << 4;
 
     /**
      * 标志itemView可以滚动
      * @see #setItemScrollingEnabled(boolean)
      * */
-    private static final int FLAG_ITEM_SCROLLING_ENABLED_BY_USER = 1 << 5;
+    private static final int VIEW_FLAG_ITEM_SCROLLING_ENABLED_BY_USER = 1 << 5;
 
     /**
      * 标志itemView可以向右滑动且松手后有自动回弹的效果
      * @see #setItemSpringBackEnabled(boolean)
      */
-    private static final int FLAG_ITEM_SPRING_BACK_ENABLED = 1 << 6;
+    private static final int VIEW_FLAG_ITEM_SPRING_BACK_ENABLED = 1 << 6;
 
     /**
      * 标志用户设置了列表可以过度滚动
      * @see #setOverscrollEnabled(boolean)
      */
-    private static final int FLAG_OVERSCROLL_ENABLED_BY_USER = 1 << 7;
+    private static final int VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER = 1 << 7;
 
     private int mActivePointerId = INVALID_POINTER;
 
@@ -125,36 +126,37 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
     @OverscrollEdge
     private int mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
 
+    private ValueAnimator mOverscrollAnim;
     private final Interpolator mInterpolator = new DecelerateInterpolator();
 
-    private int mAnimStateFlag;
-    private static final int FLAG_HEADER_ANIM_RUNNING = 1;
-    private static final int FLAG_FOOTER_ANIM_RUNNING = 1 << 1;
+    private int mAnimFlags;
+    private static final int ANIM_FLAG_HEADER_ANIM_RUNNING = 1;
+    private static final int ANIM_FLAG_FOOTER_ANIM_RUNNING = 1 << 1;
     // @formatter:on
 
     public boolean isScrolling() {
-        return (mViewFlags & FLAG_SCROLLING) != 0;
+        return (mViewFlags & VIEW_FLAG_SCROLLING) != 0;
     }
 
     public boolean isItemScrolling() {
-        return (mViewFlags & FLAG_ITEM_SCROLLING) != 0;
+        return (mViewFlags & VIEW_FLAG_ITEM_SCROLLING) != 0;
     }
 
     public boolean isItemFullScrolled() {
-        return (mViewFlags & FLAG_ITEM_FULL_SCROLLED) != 0;
+        return (mViewFlags & VIEW_FLAG_ITEM_FULL_SCROLLED) != 0;
     }
 
     public boolean isOverscrolling() {
-        return (mViewFlags & FLAG_OVERSCROLLING) != 0;
+        return (mViewFlags & VIEW_FLAG_OVERSCROLLING) != 0;
     }
 
     public boolean isDraggedOverscrolling() {
-        return (mViewFlags & FLAG_DRAGGED_OVERSCROLLING) != 0;
+        return (mViewFlags & VIEW_FLAG_DRAGGED_OVERSCROLLING) != 0;
     }
 
     public boolean isItemScrollingEnabled() {
         return getLayoutOrientation() == VERTICAL
-                && (mViewFlags & FLAG_ITEM_SCROLLING_ENABLED_BY_USER) != 0;
+                && (mViewFlags & VIEW_FLAG_ITEM_SCROLLING_ENABLED_BY_USER) != 0;
     }
 
     /**
@@ -162,38 +164,38 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
      */
     public void setItemScrollingEnabled(boolean enabled) {
         if (enabled)
-            mViewFlags |= FLAG_ITEM_SCROLLING_ENABLED_BY_USER;
+            mViewFlags |= VIEW_FLAG_ITEM_SCROLLING_ENABLED_BY_USER;
         else
-            mViewFlags &= ~FLAG_ITEM_SCROLLING_ENABLED_BY_USER;
+            mViewFlags &= ~VIEW_FLAG_ITEM_SCROLLING_ENABLED_BY_USER;
     }
 
     public boolean isItemSpringBackEnabled() {
-        return (mViewFlags & FLAG_ITEM_SPRING_BACK_ENABLED) != 0;
+        return (mViewFlags & VIEW_FLAG_ITEM_SPRING_BACK_ENABLED) != 0;
     }
 
     public void setItemSpringBackEnabled(boolean enabled) {
         if (enabled) {
-            mViewFlags |= FLAG_ITEM_SPRING_BACK_ENABLED;
+            mViewFlags |= VIEW_FLAG_ITEM_SPRING_BACK_ENABLED;
             mMaxRightScrollX = (int) (10f * mDp + 0.5f);
         } else {
-            mViewFlags &= ~FLAG_ITEM_SPRING_BACK_ENABLED;
+            mViewFlags &= ~VIEW_FLAG_ITEM_SPRING_BACK_ENABLED;
             mMaxRightScrollX = 0;
         }
     }
 
     public boolean isOverscrollEnabled() {
-        return getChildCount() > 0 && (mViewFlags & FLAG_OVERSCROLL_ENABLED_BY_USER) != 0;
+        return getChildCount() > 0 && (mViewFlags & VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER) != 0;
     }
 
     public void setOverscrollEnabled(boolean enabled) {
         if (enabled) {
-            mViewFlags |= FLAG_OVERSCROLL_ENABLED_BY_USER;
+            mViewFlags |= VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER;
             // 禁用拉到两端时发荧光的效果
             setOverScrollMode(OVER_SCROLL_NEVER);
             // 将滚动条设置在padding区域外并且覆盖在view上
             setScrollBarStyle(SCROLLBARS_OUTSIDE_OVERLAY);
         } else
-            mViewFlags &= ~FLAG_OVERSCROLL_ENABLED_BY_USER;
+            mViewFlags &= ~VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER;
     }
 
     @OverscrollEdge
@@ -348,12 +350,12 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
         switch (e.getAction()) {
             case MotionEvent.ACTION_MOVE:
                 if (!isScrolling() && isTendToScrollCurrView()) {
-                    mViewFlags |= FLAG_SCROLLING;
+                    mViewFlags |= VIEW_FLAG_SCROLLING;
                 }
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                mViewFlags &= ~FLAG_SCROLLING;
+                mViewFlags &= ~VIEW_FLAG_SCROLLING;
                 mShouldInterceptTouchEvent = false;
                 break;
         }
@@ -426,7 +428,7 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
                     releaseItemView();
                 } else {
                     if (shouldHandleItemScrollingEvent()) {
-                        mViewFlags |= FLAG_ITEM_SCROLLING;
+                        mViewFlags |= VIEW_FLAG_ITEM_SCROLLING;
                         mShouldInterceptTouchEvent = true;
                         getParent().requestDisallowInterceptTouchEvent(true);
                     }
@@ -454,18 +456,18 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
                         mItemView.smoothScrollTo(mMaxLeftScrollX, 0, (int) (250f
                                 * ((float) mMaxLeftScrollX - (float) scrollX)
                                 / (float) middle + 0.5f));
-                        mViewFlags |= FLAG_ITEM_FULL_SCROLLED;
+                        mViewFlags |= VIEW_FLAG_ITEM_FULL_SCROLLED;
 
                         // 左滑时 完全滑开
                     } else if (scrollX == mMaxLeftScrollX) {
-                        mViewFlags |= FLAG_ITEM_FULL_SCROLLED;
+                        mViewFlags |= VIEW_FLAG_ITEM_FULL_SCROLLED;
 
                         // 右滑时
                     } else if (scrollX < 0) {
                         // 从右 mMaxRightScrollX 向左平滑滚动 2*mMaxRightScrollX 到
                         // 左maxRightScrollX位置
                         mItemView.smoothScrollTo(-mMaxRightScrollX, 0, 150);
-                        mViewFlags |= FLAG_ITEM_FULL_SCROLLED;
+                        mViewFlags |= VIEW_FLAG_ITEM_FULL_SCROLLED;
 
                         postDelayed(new Runnable() {
                             @Override
@@ -475,12 +477,12 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
                             }
                         }, 150);
                     }
-                    mViewFlags &= ~FLAG_ITEM_SCROLLING;
+                    mViewFlags &= ~VIEW_FLAG_ITEM_SCROLLING;
                     mLastItemView = mItemView;
                     return true;
                 }
             case MotionEvent.ACTION_CANCEL:
-                mViewFlags &= ~FLAG_ITEM_SCROLLING;
+                mViewFlags &= ~VIEW_FLAG_ITEM_SCROLLING;
                 mLastItemView = mItemView;
                 releaseItemView();
                 break;
@@ -507,7 +509,7 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
     private void releaseItemViewInternal(SmoothScrollableLinearLayout itemView, int duration) {
         if (itemView != null) {
             itemView.smoothScrollTo(0, 0, duration);
-            mViewFlags &= ~FLAG_ITEM_FULL_SCROLLED;
+            mViewFlags &= ~VIEW_FLAG_ITEM_FULL_SCROLLED;
         }
     }
 
@@ -548,7 +550,7 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
                                 } else if (atBottom && dy < 0) {
                                     mOverscrollEdge = OVERSCROLL_EDGE_BOTTOM;
                                 } else break;
-                                mViewFlags |= FLAG_OVERSCROLLING | FLAG_DRAGGED_OVERSCROLLING;
+                                mViewFlags |= VIEW_FLAG_OVERSCROLLING | VIEW_FLAG_DRAGGED_OVERSCROLLING;
                                 break;
                             case HORIZONTAL:
                                 final int dx = mCurrX - mDownX;
@@ -566,7 +568,7 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
                                 } else if (atFarRight && dx < 0) {
                                     mOverscrollEdge = OVERSCROLL_EDGE_RIGHT;
                                 } else break;
-                                mViewFlags |= FLAG_OVERSCROLLING | FLAG_DRAGGED_OVERSCROLLING;
+                                mViewFlags |= VIEW_FLAG_OVERSCROLLING | VIEW_FLAG_DRAGGED_OVERSCROLLING;
                                 break;
                         }
                         break;
@@ -677,7 +679,7 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
                 if (isDraggedOverscrolling()) {
                     smoothSpringBack();
                     cancelTouch(); // clear scroll state
-                    mViewFlags &= ~FLAG_DRAGGED_OVERSCROLLING;
+                    mViewFlags &= ~VIEW_FLAG_DRAGGED_OVERSCROLLING;
                     return true;
                 }
                 break;
@@ -686,7 +688,7 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
     }
 
     private void cancelDraggedOverscrolling() {
-        mViewFlags &= ~(FLAG_DRAGGED_OVERSCROLLING | FLAG_OVERSCROLLING);
+        mViewFlags &= ~(VIEW_FLAG_DRAGGED_OVERSCROLLING | VIEW_FLAG_OVERSCROLLING);
         mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
     }
 
@@ -779,21 +781,14 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
         if (getLayoutManager().getItemCount() == 0) return true;
 
         try {
-            if (getLayoutManager() instanceof LinearLayoutManager) {
-                return ((LinearLayoutManager) getLayoutManager())
-                        .findFirstCompletelyVisibleItemPosition() == 0;
-            } else if (getLayoutManager() instanceof StaggeredGridLayoutManager) {
-                return ((StaggeredGridLayoutManager) getLayoutManager())
-                        .findFirstCompletelyVisibleItemPositions(null)[0] == 0;
-            }
             switch (getLayoutOrientation()) {
                 case VERTICAL:
-                    return !canScrollVertically(-1);
+                    return !ViewCompat.canScrollVertically(this, -1);
                 case HORIZONTAL:
-                    return !canScrollHorizontally(-1);
+                    return !ViewCompat.canScrollHorizontally(this, -1);
             }
         } catch (NullPointerException e) {
-            //
+            // It causes this exception on invoking #notifyDataSetChanged().
         }
         return false;
     }
@@ -804,20 +799,11 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
         if (lastItemPosition < 0) return true;
 
         try {
-            if (getLayoutManager() instanceof LinearLayoutManager) {
-                return ((LinearLayoutManager) getLayoutManager())
-                        .findLastCompletelyVisibleItemPosition() == lastItemPosition;
-            } else if (getLayoutManager() instanceof StaggeredGridLayoutManager) {
-                final int[] positions = ((StaggeredGridLayoutManager) getLayoutManager()).findLastCompletelyVisibleItemPositions(null);
-                for (int position : positions) {
-                    if (position == lastItemPosition) return true;
-                }
-            }
             switch (getLayoutOrientation()) {
                 case VERTICAL:
-                    return !canScrollVertically(1);
+                    return !ViewCompat.canScrollVertically(this, 1);
                 case HORIZONTAL:
-                    return !canScrollHorizontally(1);
+                    return !ViewCompat.canScrollHorizontally(this, 1);
             }
         } catch (NullPointerException e) {
             //
@@ -871,13 +857,8 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
     @Override
     public void startHeaderOverscrollAnim(int from, int to, int duration) {
         if (from != to && hasAnimationFinished()) {
-            mViewFlags |= FLAG_OVERSCROLLING;
-            mAnimStateFlag |= FLAG_HEADER_ANIM_RUNNING;
-
-            ValueAnimator anim = ValueAnimator.ofInt(from, to);
-            anim.setDuration(duration);
-            anim.addListener(this);
-            anim.start();
+            mAnimFlags |= ANIM_FLAG_HEADER_ANIM_RUNNING;
+            setupAnim(from, to, duration);
         }
     }
 
@@ -889,18 +870,21 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
     @Override
     public void startFooterOverscrollAnim(int from, int to, int duration) {
         if (from != to && hasAnimationFinished()) {
-            mViewFlags |= FLAG_OVERSCROLLING;
-            mAnimStateFlag |= FLAG_FOOTER_ANIM_RUNNING;
-
-            ValueAnimator anim = ValueAnimator.ofInt(from, to);
-            anim.setDuration(duration);
-            anim.addListener(this);
-            anim.start();
+            mAnimFlags |= ANIM_FLAG_FOOTER_ANIM_RUNNING;
+            setupAnim(from, to, duration);
         }
     }
 
+    private void setupAnim(int from, int to, int duration) {
+        mOverscrollAnim = ValueAnimator.ofInt(from, to);
+        mOverscrollAnim.addListener(this);
+        mOverscrollAnim.addUpdateListener(this);
+        mOverscrollAnim.setInterpolator(mInterpolator);
+        mOverscrollAnim.setDuration(duration).start();
+    }
+
     private boolean hasAnimationFinished() {
-        if ((mAnimStateFlag & (FLAG_HEADER_ANIM_RUNNING | FLAG_FOOTER_ANIM_RUNNING)) != 0) {
+        if ((mAnimFlags & (ANIM_FLAG_HEADER_ANIM_RUNNING | ANIM_FLAG_FOOTER_ANIM_RUNNING)) != 0) {
             Log.e(TAG, "can not start this over-scroll animation " +
                     "till the last animation has finished");
             return false;
@@ -909,20 +893,23 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
     }
 
     @Override
-    public void onAnimationStart(Animator animation) {
-        if (animation instanceof ValueAnimator) {
-            ValueAnimator anim = (ValueAnimator) animation;
-            anim.addUpdateListener(this);
-            anim.setInterpolator(mInterpolator);
+    public void forceEndOverscrollAnim() {
+        if ((mAnimFlags & (ANIM_FLAG_HEADER_ANIM_RUNNING | ANIM_FLAG_FOOTER_ANIM_RUNNING)) != 0) {
+            mOverscrollAnim.end();
         }
     }
 
     @Override
+    public void onAnimationStart(Animator animation) {
+        mViewFlags |= VIEW_FLAG_OVERSCROLLING;
+    }
+
+    @Override
     public void onAnimationEnd(Animator animation) {
-        if ((mAnimStateFlag & FLAG_HEADER_ANIM_RUNNING) != 0)
-            mAnimStateFlag &= ~FLAG_HEADER_ANIM_RUNNING;
-        else if ((mAnimStateFlag & FLAG_FOOTER_ANIM_RUNNING) != 0)
-            mAnimStateFlag &= ~FLAG_FOOTER_ANIM_RUNNING;
+        if ((mAnimFlags & ANIM_FLAG_HEADER_ANIM_RUNNING) != 0)
+            mAnimFlags &= ~ANIM_FLAG_HEADER_ANIM_RUNNING;
+        else if ((mAnimFlags & ANIM_FLAG_FOOTER_ANIM_RUNNING) != 0)
+            mAnimFlags &= ~ANIM_FLAG_FOOTER_ANIM_RUNNING;
         smoothSpringBack();
     }
 
@@ -937,7 +924,7 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
     @Override
     public void onAnimationUpdate(ValueAnimator animation) {
         final int padding = (int) animation.getAnimatedValue();
-        if ((mAnimStateFlag & FLAG_HEADER_ANIM_RUNNING) != 0) {
+        if ((mAnimFlags & ANIM_FLAG_HEADER_ANIM_RUNNING) != 0) {
             switch (getLayoutOrientation()) {
                 case VERTICAL:
                     final int pt = getPaddingTop();
@@ -956,7 +943,7 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
                     }
                     break;
             }
-        } else if ((mAnimStateFlag & FLAG_FOOTER_ANIM_RUNNING) != 0) {
+        } else if ((mAnimFlags & ANIM_FLAG_FOOTER_ANIM_RUNNING) != 0) {
             switch (getLayoutOrientation()) {
                 case VERTICAL:
                     final int pb = getPaddingBottom();
@@ -989,8 +976,9 @@ public class SwipeMenuRecyclerView extends RecyclerView implements OverScrollBas
         } else if (getPaddingRight() != mPaddingRight) {
             startFooterOverscrollAnim(getPaddingRight(), mPaddingRight, DURATION_SPRING_BACK);
         } else {
+            mOverscrollAnim = null;
             mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
-            mViewFlags &= ~FLAG_OVERSCROLLING;
+            mViewFlags &= ~VIEW_FLAG_OVERSCROLLING;
         }
     }
 
