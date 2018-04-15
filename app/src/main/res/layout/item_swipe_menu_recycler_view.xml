@@ -23,13 +23,13 @@
             android:id="@+id/text_ssll_rl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
             android:layout_margin="5dp"
+            android:layout_centerVertical="true"
             android:layout_toRightOf="@id/image_ssll_rl"
-            android:autoLink="web"
-            android:linksClickable="true"
             android:text="文本"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:autoLink="web"
+            android:linksClickable="true" />
     </RelativeLayout>
 
     <LinearLayout
@@ -42,8 +42,8 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="@color/orange"
             android:gravity="center"
+            android:background="@color/orange"
             android:text="置顶"
             android:textColor="@android:color/white"
             android:textSize="16sp" />
@@ -53,12 +53,11 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="@color/red"
             android:gravity="center"
+            android:background="@color/red"
             android:text="删除"
             android:textColor="@android:color/white"
             android:textSize="16sp" />
         <!-- and can place more buttons here... -->
-
     </LinearLayout>
 </com.liuzhenlin.overscroll.SmoothScrollableLinearLayout>

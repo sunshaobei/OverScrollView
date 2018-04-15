@@ -36,13 +36,13 @@ Right sliding item brings a rebound effect.
             android:id="@+id/text_ssll_rl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
             android:layout_margin="5dp"
+            android:layout_centerVertical="true"
             android:layout_toRightOf="@id/image_ssll_rl"
-            android:autoLink="web"
-            android:linksClickable="true"
             android:text="文本"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:autoLink="web"
+            android:linksClickable="true" />
     </RelativeLayout>
 
     <LinearLayout
@@ -55,8 +55,8 @@ Right sliding item brings a rebound effect.
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="@color/orange"
             android:gravity="center"
+            android:background="@color/orange"
             android:text="置顶"
             android:textColor="@android:color/white"
             android:textSize="16sp" />
@@ -66,13 +66,12 @@ Right sliding item brings a rebound effect.
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="@color/red"
             android:gravity="center"
+            android:background="@color/red"
             android:text="删除"
             android:textColor="@android:color/white"
             android:textSize="16sp" />
         <!-- and can place more buttons here... -->
-
     </LinearLayout>
 </com.liuzhenlin.overscroll.SmoothScrollableLinearLayout>
 ```
@@ -165,74 +164,6 @@ Similar to HorizontalScrollView
 
 **`Note that OverScrollView and HorizontalOverScrollView can also disable over-scroll functionality (the same as SwipeMenuRecyclerView). OverScrollView can also be used with HorizontalOverScrollView to achieve four directions over-scroll and rebound.`**
 
-## OverScrollBase Interface
-For views with scrollbars like ListView and GridView, OverScrollView and HorizontalOverScrollView may not be suitable. <br> 
-In this case, you need to create a subclass inherited from the corresponding widget and implementing the methods of this interface, and then do some logic processing on the touch events of the derived widget.
-```Java
-package com.liuzhenlin.overscroll;
-
-import android.support.annotation.IntDef;
-import android.view.MotionEvent;
-
-/**
- * Created on 2017/12/23. <br/>
- * Copyright (c) 2017 刘振林.All rights reserved.
- *
- * @author 刘振林
- */
-public interface OverScrollBase {
-    /**
-     * 回弹时间
-     */
-    int DURATION_SPRING_BACK = 250; // ms
-
-    int OVERSCROLL_EDGE_UNSPECIFIED = 0;
-    int OVERSCROLL_EDGE_TOP = 1;
-    int OVERSCROLL_EDGE_BOTTOM = 2;
-    int OVERSCROLL_EDGE_TOP_OR_BOTTOM = 3;
-    int OVERSCROLL_EDGE_LEFT = 4;
-    int OVERSCROLL_EDGE_RIGHT = 5;
-    int OVERSCROLL_EDGE_LEFT_OR_RIGHT = 6;
-
-    @IntDef({
-            OVERSCROLL_EDGE_UNSPECIFIED,
-            OVERSCROLL_EDGE_TOP, OVERSCROLL_EDGE_BOTTOM, OVERSCROLL_EDGE_TOP_OR_BOTTOM,
-            OVERSCROLL_EDGE_LEFT, OVERSCROLL_EDGE_RIGHT, OVERSCROLL_EDGE_LEFT_OR_RIGHT
-    })
-    @interface OverscrollEdge {
-    }
-
-    boolean handleOverscroll(MotionEvent e);
-
-    boolean isTendToScrollCurrView();
-
-    int computeOverscrollDeltaY();
-
-    int computeOverscrollDeltaX();
-
-    /**
-     * 是否向下拉时手指向上滑动或向上拉时手指向下滑动 或
-     * 向右拉时手指向左滑动或向左拉时手指向右滑动
-     */
-    boolean isPushingBack();
-
-    boolean isAtTheStart();
-
-    boolean isAtTheEnd();
-
-    void startHeaderOverscrollAnim(int from, int to, int duration);
-
-    void startFooterOverscrollAnim(int from, int to, int duration);
-
-    void forceEndOverscrollAnim();
-
-    /**
-     * 回弹至初始位置
-     */
-    void smoothSpringBack();
-}
-```
-
 ## Download
 Download via jitpack:
 
@@ -250,7 +181,7 @@ Step 1. Add the JitPack repository in your root build.gradle at the end of repos
 Step 2. Add the dependency
 ```gradle
 	dependencies {
-	        compile 'com.github.freeze-frame:OverscrollView:v1.2'
+	        compile 'com.github.freeze-frame:OverscrollView:v1.2.1'
 	}
 ```
 

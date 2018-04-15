@@ -4,6 +4,7 @@
     <color name="orange">#FFA500</color>
 
     <color name="color_selector">#0F000000</color>
+
     <color name="color_ripple">#2F000000</color>
     <color name="color_ripple_selector">#1F000000</color>
 </resources>

@@ -3,20 +3,22 @@ package com.liuzhenlin.overscroll;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.support.annotation.IntDef;
 import android.support.v4.view.ViewCompat;
+import android.support.v4.view.ViewPropertyAnimatorListener;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.animation.Animation;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
-import android.view.animation.TranslateAnimation;
 import android.widget.EdgeEffect;
 import android.widget.HorizontalScrollView;
 
 import com.liuzhenlin.overscroll.listener.OnOverFlyingListener;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
@@ -32,20 +34,11 @@ import static android.support.v4.widget.ViewDragHelper.INVALID_POINTER;
  */
 @SuppressLint("LongLogTag")
 public class HorizontalOverScrollView extends HorizontalScrollView
-        implements OverScrollBase, Animation.AnimationListener {
+        implements ViewPropertyAnimatorListener {
     // @formatter:off
     private static final String TAG = "HorizontalOverScrollView";
 
     private View mInnerView;
-
-    // 子View相对于当前view的位置
-    private int mChildLeft;
-    private int mChildRight;
-
-    private int mChildLeftMargins;
-    private int mChildRightMargins;
-
-    protected final int mTouchSlop;
 
     private int mViewFlags;
 
@@ -64,37 +57,53 @@ public class HorizontalOverScrollView extends HorizontalScrollView
      */
     private static final int VIEW_FLAG_OVERSCROLL_ENABLED_BY_USER = 1 << 3;
 
+    protected final int mTouchSlop;
+
     private int mActivePointerId = INVALID_POINTER;
 
     /** 按下时点的横坐标 */
-    private int mDownX;
+    private float mDownX;
     /** 按下时点的纵坐标 */
-    private int mDownY;
+    private float mDownY;
 
     /** 当前点的横坐标 */
-    private int mCurrX;
+    private float mCurrX;
     /** 当前点的纵坐标 */
-    private int mCurrY;
+    private float mCurrY;
 
     /** 前一个点的横坐标 */
-    private int mLastX;
+    private float mLastX;
     /** 前一个点的纵坐标 */
-    private int mLastY;
+    private float mLastY;
 
     /** 移动时水平方向总共移动的像素点 */
-    private int mTotalAbsDeltaX;
+    private float mTotalAbsDeltaX;
     /** 移动时竖直方向总共移动的像素点 */
-    private int mTotalAbsDeltaY;
+    private float mTotalAbsDeltaY;
 
     /** 是否消费了当前的touch事件 */
     private boolean mIsConsumed;
 
-    private final OverFlyingDetector mOverflyingDetector;
-
     @OverscrollEdge
     private int mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
 
-    private TranslateAnimation mOverscrollAnim;
+    public static final int OVERSCROLL_EDGE_UNSPECIFIED = 0;
+    public static final int OVERSCROLL_EDGE_LEFT = 1;
+    public static final int OVERSCROLL_EDGE_RIGHT = 2;
+    public static final int OVERSCROLL_EDGE_LEFT_OR_RIGHT = 3;
+    @IntDef({
+            OVERSCROLL_EDGE_UNSPECIFIED,
+            OVERSCROLL_EDGE_LEFT, OVERSCROLL_EDGE_RIGHT, OVERSCROLL_EDGE_LEFT_OR_RIGHT
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface OverscrollEdge {
+    }
+
+    /** 回弹时间 */
+    private static final int DURATION_SPRING_BACK = 250; // ms
+
+    private final OverFlyingDetector mOverflyingDetector;
+
     private final Interpolator mInterpolator = new DecelerateInterpolator();
     // @formatter:on
 
@@ -182,8 +191,8 @@ public class HorizontalOverScrollView extends HorizontalScrollView
             case MotionEvent.ACTION_POINTER_DOWN:
                 final int actionIndex = ev.getActionIndex();
                 mActivePointerId = ev.getPointerId(actionIndex);
-                mCurrX = mDownX = (int) (ev.getX(actionIndex) + 0.5f);
-                mCurrY = mDownY = (int) (ev.getY(actionIndex) + 0.5f);
+                mCurrX = mDownX = ev.getX(actionIndex);
+                mCurrY = mDownY = ev.getY(actionIndex);
                 break;
             case MotionEvent.ACTION_MOVE:
                 final int index = ev.findPointerIndex(mActivePointerId);
@@ -192,8 +201,8 @@ public class HorizontalOverScrollView extends HorizontalScrollView
                             + mActivePointerId + " not found. Did any MotionEvents get skipped?");
                     return false;
                 }
-                mCurrX = (int) (ev.getX(index) + 0.5f);
-                mCurrY = (int) (ev.getY(index) + 0.5f);
+                mCurrX = ev.getX(index);
+                mCurrY = ev.getY(index);
                 break;
             case MotionEvent.ACTION_POINTER_UP:
                 onSecondaryPointerUp(ev);
@@ -215,8 +224,8 @@ public class HorizontalOverScrollView extends HorizontalScrollView
             // active pointer and adjust accordingly.
             // TODO: Make this decision more intelligent.
             final int newPointerIndex = pointerIndex == 0 ? 1 : 0;
-            mLastX = mCurrX = (int) (ev.getX(newPointerIndex) + 0.5f);
-            mLastY = mCurrY = (int) (ev.getY(newPointerIndex) + 0.5f);
+            mLastX = mCurrX = ev.getX(newPointerIndex);
+            mLastY = mCurrY = ev.getY(newPointerIndex);
             mActivePointerId = ev.getPointerId(newPointerIndex);
         }
     }
@@ -224,7 +233,7 @@ public class HorizontalOverScrollView extends HorizontalScrollView
     private void markCurrXY(MotionEvent ev) {
         switch (ev.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
-                mTotalAbsDeltaX = mTotalAbsDeltaY = 0;
+                mTotalAbsDeltaX = mTotalAbsDeltaY = 0f;
             case MotionEvent.ACTION_POINTER_DOWN:
                 mLastX = mCurrX;
                 mLastY = mCurrY;
@@ -242,7 +251,7 @@ public class HorizontalOverScrollView extends HorizontalScrollView
     public boolean onTouchEvent(MotionEvent ev) {
         switch (ev.getAction()) {
             case MotionEvent.ACTION_MOVE:
-                if (!isScrolling() && isTendToScrollCurrView()) {
+                if (!isScrolling() && isTendToScrollHorizontally()) {
                     mViewFlags |= VIEW_FLAG_SCROLLING;
                 }
                 break;
@@ -255,38 +264,42 @@ public class HorizontalOverScrollView extends HorizontalScrollView
         return mIsConsumed || super.onTouchEvent(ev);
     }
 
-    @Override
-    public boolean handleOverscroll(MotionEvent e) {
+    public boolean isTendToScrollHorizontally() {
+        final float absDX = Math.abs(mCurrX - mDownX);
+        final float absDY = Math.abs(mCurrY - mDownY);
+        return absDX > absDY && absDX >= mTouchSlop
+                || mTotalAbsDeltaX > mTotalAbsDeltaY && mTotalAbsDeltaX >= mTouchSlop;
+    }
+
+    protected boolean handleOverscroll(MotionEvent e) {
         if (!isOverscrollEnabled()) {
             return false;
         }
         mOverflyingDetector.onTouchEvent(e);
 
         switch (e.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                resolveInnerViewBounds();
-                break;
             case MotionEvent.ACTION_MOVE:
-                final int deltaX = computeOverscrollDeltaX();
-                if (deltaX == 0 && isDraggedOverscrolling()) {
+                final float deltaX = computeOverscrollDeltaX();
+                if (deltaX == 0f && isDraggedOverscrolling()) {
                     return true;
                 }
+
                 switch (mOverscrollEdge) {
                     case OVERSCROLL_EDGE_UNSPECIFIED: {
                         if (!isScrolling()) {
                             return false;
                         }
-                        final int dx = mCurrX - mDownX;
+                        final float dx = mCurrX - mDownX;
                         final boolean atLeft = isAtLeft();
                         final boolean atRight = isAtRight();
                         // 当前布局不能左右滚动时 --> 不限制右拉和左拉
                         if (atLeft && atRight) {
                             mOverscrollEdge = OVERSCROLL_EDGE_LEFT_OR_RIGHT;
                             // 右拉
-                        } else if (atLeft && dx > 0) {
+                        } else if (atLeft && dx > 0f) {
                             mOverscrollEdge = OVERSCROLL_EDGE_LEFT;
                             // 左拉
-                        } else if (atRight && dx < 0) {
+                        } else if (atRight && dx < 0f) {
                             mOverscrollEdge = OVERSCROLL_EDGE_RIGHT;
                         } else
                             return false;
@@ -295,34 +308,36 @@ public class HorizontalOverScrollView extends HorizontalScrollView
                     }
 
                     case OVERSCROLL_EDGE_LEFT: {
-                        if (!isAtLeft()) {
+                        final float transX = mInnerView.getTranslationX();
+                        if (transX + deltaX < 0f) {
                             cancelDraggedOverscrolling();
                             break;
                         }
 
-                        final int dx = mInnerView.getLeft() + deltaX < mChildLeft ? 0 : deltaX;
+                        final float newTransX = transX + (transX + deltaX < 0f ? 0f : deltaX);
                         // 移动布局
-                        mInnerView.offsetLeftAndRight(dx);
+                        mInnerView.setTranslationX(newTransX);
 
                         invalidateParentCachedTouchX();
                     }
                     return true;
 
                     case OVERSCROLL_EDGE_RIGHT: {
-                        if (!isAtRight()) {
+                        final float transX = mInnerView.getTranslationX();
+                        if (transX + deltaX > 0f) {
                             cancelDraggedOverscrolling();
                             break;
                         }
 
-                        final int dx = mInnerView.getRight() + deltaX > mChildRight ? 0 : deltaX;
-                        mInnerView.offsetLeftAndRight(dx);
+                        final float newTransX = transX + (transX + deltaX > 0f ? 0f : deltaX);
+                        mInnerView.setTranslationX(newTransX);
 
                         invalidateParentCachedTouchX();
                     }
                     return true;
 
                     case OVERSCROLL_EDGE_LEFT_OR_RIGHT:
-                        mInnerView.offsetLeftAndRight(deltaX);
+                        mInnerView.setTranslationX(mInnerView.getTranslationX() + deltaX);
                         return true;
                 }
                 break;
@@ -339,18 +354,40 @@ public class HorizontalOverScrollView extends HorizontalScrollView
         return false;
     }
 
-    private void resolveInnerViewBounds() {
-        if (mInnerView != null) {
-            mChildLeftMargins = getPaddingLeft();
-            mChildRightMargins = getPaddingRight();
-            if (mInnerView.getLayoutParams() instanceof MarginLayoutParams) {
-                MarginLayoutParams mlp = (MarginLayoutParams) mInnerView.getLayoutParams();
-                mChildLeftMargins += mlp.leftMargin;
-                mChildRightMargins += mlp.rightMargin;
-            }
-            mChildLeft = mChildLeftMargins;
-            mChildRight = mChildLeft + mInnerView.getMeasuredWidth();
+    private float computeOverscrollDeltaX() {
+        switch (mOverscrollEdge) {
+            case OVERSCROLL_EDGE_LEFT:
+            case OVERSCROLL_EDGE_RIGHT:
+            case OVERSCROLL_EDGE_LEFT_OR_RIGHT:
+                final float deltaX = mCurrX - mLastX;
+                if (isPushingBack()) {
+                    return deltaX;
+                } else {
+                    MarginLayoutParams mlp = (MarginLayoutParams) mInnerView.getLayoutParams();
+                    final float ratio = Math.abs(mInnerView.getTranslationX()) /
+                            ((getWidth() - getPaddingLeft() - getPaddingRight() - mlp.leftMargin - mlp.rightMargin) * 0.95f);
+                    return (float) (1d / (2d + Math.tan(Math.PI / 2d * ratio)) * deltaX);
+                }
         }
+        return 0f;
+    }
+
+    /**
+     * 是否向右拉时手指向左滑动或向左拉时手指向右滑动
+     */
+    private boolean isPushingBack() {
+        switch (mOverscrollEdge) {
+            case OVERSCROLL_EDGE_LEFT:
+            case OVERSCROLL_EDGE_RIGHT:
+            case OVERSCROLL_EDGE_LEFT_OR_RIGHT:
+                final float deltaX = mCurrX - mLastX;// 向右滑动为正
+                final float transX = mInnerView.getTranslationX();
+                // 向右拉时手指向左滑动
+                return (transX > 0f && deltaX < 0f ||
+                        // 向左拉时手指向右滑动
+                        transX < 0f && deltaX > 0f);
+        }
+        return false;
     }
 
     private void cancelDraggedOverscrolling() {
@@ -358,151 +395,53 @@ public class HorizontalOverScrollView extends HorizontalScrollView
         mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
     }
 
-    @Override
-    public boolean isTendToScrollCurrView() {
-        final int absDX = Math.abs(mCurrX - mDownX);
-        final int absDY = Math.abs(mCurrY - mDownY);
-        return absDX > absDY && absDX >= mTouchSlop
-                || mTotalAbsDeltaX > mTotalAbsDeltaY && mTotalAbsDeltaX >= mTouchSlop;
-    }
-
-    @Override
-    public int computeOverscrollDeltaY() {
-        return 0;
-    }
-
-    @Override
-    public int computeOverscrollDeltaX() {
-        switch (mOverscrollEdge) {
-            case OVERSCROLL_EDGE_LEFT:
-            case OVERSCROLL_EDGE_RIGHT:
-            case OVERSCROLL_EDGE_LEFT_OR_RIGHT:
-                final int deltaX = mCurrX - mLastX;
-                if (isPushingBack()) {
-                    return deltaX;
-                } else {
-                    final double ratio = (double) Math.abs(mInnerView.getLeft() - mChildLeft)
-                            / (double) (getWidth() - mChildLeftMargins - mChildRightMargins);
-                    return (int) (1d / (2d + Math.tan(Math.PI / 2d * ratio)) * (double) deltaX);
-                }
-        }
-        return 0;
-    }
-
-    /**
-     * 是否向右拉时手指向左滑动或向左拉时手指向右滑动
-     */
-    @Override
-    public boolean isPushingBack() {
-        switch (mOverscrollEdge) {
-            case OVERSCROLL_EDGE_LEFT:
-            case OVERSCROLL_EDGE_RIGHT:
-            case OVERSCROLL_EDGE_LEFT_OR_RIGHT:
-                final int deltaX = mCurrX - mLastX;// 向右滑动为正
-                // 向右拉时手指向左滑动
-                return (mInnerView.getLeft() > mChildLeft && deltaX < 0 ||
-                        // 向左拉时手指向右滑动
-                        mInnerView.getLeft() < mChildLeft && deltaX > 0);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean isAtTheStart() {
-        return isAtLeft();
-    }
-
-    @Override
-    public boolean isAtTheEnd() {
-        return isAtRight();
-    }
-
     public boolean isAtLeft() {
         return getScrollX() == 0 || !ViewCompat.canScrollHorizontally(this, -1);
     }
 
     public boolean isAtRight() {
+        MarginLayoutParams mlp = (MarginLayoutParams) mInnerView.getLayoutParams();
         final int scrollRange = mInnerView.getMeasuredWidth()
-                - (getWidth() - mChildLeftMargins - mChildRightMargins);
+                - (getWidth() - getPaddingLeft() - getPaddingRight() - mlp.leftMargin - mlp.rightMargin);
         final int scrollX = getScrollX();
         return scrollX == scrollRange || !ViewCompat.canScrollHorizontally(this, 1);
     }
 
-    /**
-     * @param from     {@link #mInnerView#getLeft()} 当前子view的左部位置偏移量
-     * @param to       最终子view的左部位置偏移量
-     * @param duration 动画持续时间
-     */
-    @Override
-    public void startHeaderOverscrollAnim(int from, int to, int duration) {
-        startOverscrollAnim(from, to, duration);
-    }
-
-    /**
-     * @param from     {@link #mInnerView#getRight()} 当前子view的右部位置偏移量
-     * @param to       最终子view的右部位置偏移量
-     * @param duration 动画持续时间
-     */
-    @Override
-    public void startFooterOverscrollAnim(int from, int to, int duration) {
-        startOverscrollAnim(from - mInnerView.getMeasuredWidth(),
-                to - mInnerView.getMeasuredWidth(), duration);
-    }
-
-    private void startOverscrollAnim(int fromLeft, int toLeft, int duration) {
-        if (fromLeft != toLeft && hasAnimationFinished()) {
-            mOverscrollAnim = new TranslateAnimation(fromLeft - toLeft, 0, 0, 0);
-            mOverscrollAnim.setDuration(duration);
-            mOverscrollAnim.setInterpolator(mInterpolator);
-            mOverscrollAnim.setAnimationListener(this);
-            // 开启回弹动画
-            mInnerView.startAnimation(mOverscrollAnim);
-            mInnerView.offsetLeftAndRight(toLeft - fromLeft);
+    public void smoothSpringBack() {
+        if (mInnerView.getTranslationX() != 0f) {
+            startOverscrollAnim(0f, DURATION_SPRING_BACK);
+        } else {
+            mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
+            mViewFlags &= ~VIEW_FLAG_OVERSCROLLING;
         }
     }
 
-    private boolean hasAnimationFinished() {
-        if (mOverscrollAnim != null) {
-            Log.e(TAG, "can not start this over-scroll animation " +
-                    "till the last animation has finished");
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public void forceEndOverscrollAnim() {
-        if (mOverscrollAnim != null) {
-            mOverscrollAnim.cancel();
+    private void startOverscrollAnim(float toTransX, int duration) {
+        if (mInnerView.getTranslationX() != toTransX) {
+            ViewCompat.animate(mInnerView).translationX(toTransX)
+                    .setDuration(duration)
+                    .setInterpolator(mInterpolator)
+                    .setListener(this).start();
         }
     }
 
     @Override
-    public void onAnimationStart(Animation animation) {
+    public void onAnimationStart(View view) {
         mViewFlags |= VIEW_FLAG_OVERSCROLLING;
     }
 
     @Override
-    public void onAnimationEnd(Animation animation) {
-        mOverscrollAnim = null;
+    public void onAnimationEnd(View view) {
         smoothSpringBack();
     }
 
     @Override
-    public void onAnimationRepeat(Animation animation) {
+    public void onAnimationCancel(View view) {
+        mInnerView.setTranslationX(0f);
     }
 
-    @Override
-    public void smoothSpringBack() {
-        if (mInnerView.getLeft() != mChildLeft) {
-            startHeaderOverscrollAnim(mInnerView.getLeft(), mChildLeft, DURATION_SPRING_BACK);
-        } else if (mInnerView.getRight() != mChildRight) {
-            startFooterOverscrollAnim(mInnerView.getRight(), mChildRight, DURATION_SPRING_BACK);
-        } else {
-            mInnerView.clearAnimation();
-            mOverscrollEdge = OVERSCROLL_EDGE_UNSPECIFIED;
-            mViewFlags &= ~(VIEW_FLAG_DRAGGED_OVERSCROLLING | VIEW_FLAG_OVERSCROLLING);
-        }
+    public void forceEndOverscrollAnim() {
+        ViewCompat.animate(mInnerView).cancel();
     }
 
     protected class OverFlyingDetector extends OnOverFlyingListener {
@@ -521,13 +460,13 @@ public class HorizontalOverScrollView extends HorizontalScrollView
         @Override
         protected void onLeftOverFling(int overWidth, int duration) {
             mOverscrollEdge = OVERSCROLL_EDGE_LEFT;
-            startHeaderOverscrollAnim(mChildLeft, mChildLeft + overWidth, duration);
+            startOverscrollAnim(overWidth, duration);
         }
 
         @Override
         protected void onRightOverFling(int overWidth, int duration) {
             mOverscrollEdge = OVERSCROLL_EDGE_RIGHT;
-            startFooterOverscrollAnim(mChildRight, mChildRight - overWidth, duration);
+            startOverscrollAnim(-overWidth, duration);
         }
 
         @Override
@@ -542,12 +481,12 @@ public class HorizontalOverScrollView extends HorizontalScrollView
 
         @Override
         protected boolean isAtFarLeft() {
-            return isAtTheStart();
+            return isAtLeft();
         }
 
         @Override
         protected boolean isAtFarRight() {
-            return isAtTheEnd();
+            return isAtRight();
         }
     }
 
@@ -575,7 +514,7 @@ public class HorizontalOverScrollView extends HorizontalScrollView
                 mLastMotionXField = HorizontalScrollView.class.getDeclaredField("mLastMotionX");
                 mLastMotionXField.setAccessible(true);
             }
-            mLastMotionXField.set(this, mLastX);
+            mLastMotionXField.set(this, (int) (mLastX + 0.5f));
         } catch (Exception e) {
             e.printStackTrace();
         }
