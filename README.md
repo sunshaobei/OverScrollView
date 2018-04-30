@@ -39,6 +39,7 @@ Right sliding item brings a rebound effect.
             android:layout_margin="5dp"
             android:layout_centerVertical="true"
             android:layout_toRightOf="@id/image_ssll_rl"
+            android:layout_toEndOf="@id/image_ssll_rl"
             android:text="文本"
             android:textSize="16sp"
             android:autoLink="web"
@@ -124,12 +125,14 @@ Below are its two chief methods.
         }
     }
 ```
-2. You can disable this functionality in your xml layout files or class files (By default, it's enabled in vertical layouts).
-```xml  
-app:itemScrollingEnabled="false"
-```
+2. You can disable this functionality in your class files or xml layout files (By default, it's enabled in vertical layouts).
 ```Java
 mSwipeMenuRecyclerView.setItemScrollingEnabled(false);
+mSwipeMenuRecyclerView.setItemSpringBackEnabled(false); // disable the springback of itemView when the above is enabled
+```
+```xml
+app:itemScrollingEnabled="false"
+app:itemSpringBackEnabled="false"
 ```
 
 ### Over-scroll of the List
@@ -189,7 +192,7 @@ Step 2. Add the dependency
 I will gladly accept pull requests for bug fixes and feature enhancements but please do them in the developers branch.
 
 ## License
-Copyright 2017-2018 Liu Zhenlin
+Copyright 2017-2018 刘振林
 
 Licensed under the Apache License, Version 2.0 (the "License"); <br>
 you may not use this file except in compliance with the License. You may obtain a copy of the License at
